@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>মদন কাকু - ২ডি স্টিলথ গেম</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background-color: #1a1a1a; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+        h1 { margin-bottom: 10px; font-size: 24px; color: #f39c12; }
+        #game-container { position: relative; border: 4px solid #333; border-radius: 8px; overflow: hidden; }
+        canvas { background-color: #2c3e50; display: block; }
+        #status { position: absolute; top: 10px; left: 10px; font-weight: bold; font-size: 16px; background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <h1>মদন কাকু: মিশন চা-খোর</h1>
+    <div id="game-container">
+        <div id="status">স্কোর: <span id="score">০</span></div>
+        <canvas id="gameCanvas" width="600" height="400"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+
+        let score = 0;
+        let gameOver = false;
+
+        // প্লেয়ার (মদন কাকু)
+        const player = {
+            x: 50,
+            y: 200,
+            radius: 15,
+            speed: 3,
+            color: '#2ecc71'
+        };
+
+        // টার্গেট (চায়ের কাপ)
+        const tea = {
+            x: 540,
+            y: 200,
+            radius: 12,
+            color: '#f1c40f'
+        };
+
+        // শত্রু (গসিপিং খালাম্মা)
+        const enemy = {
+            x: 300,
+            y: 100,
+            radius: 18,
+            speedY: 2,
+            visionRange: 90,
+            visionAngle: Math.PI / 3, // ৬০ ডিগ্রি
+            color: '#e74c3c'
+        };
+
+        const keys = {};
+
+        window.addEventListener('keydown', e => keys[e.key] = true);
+        window.addEventListener('keyup', e => keys[e.key] = false);
+
+        function update() {
+            if (gameOver) return;
+
+            // প্লেয়ার মুভমেন্ট
+            if ((keys['ArrowUp'] || keys['w']) && player.y - player.radius > 0) player.y -= player.speed;
+            if ((keys['ArrowDown'] || keys['s']) && player.y + player.radius < canvas.height) player.y += player.speed;
+            if ((keys['ArrowLeft'] || keys['a']) && player.x - player.radius > 0) player.x -= player.speed;
+            if ((keys['ArrowRight'] || keys['d']) && player.x + player.radius < canvas.width) player.x += player.speed;
+
+            // শত্রু পেট্রোলিং
+            enemy.y += enemy.speedY;
+            if (enemy.y - enemy.radius < 50 || enemy.y + enemy.radius > canvas.height - 50) {
+                enemy.speedY *= -1;
+            }
+
+            // ভিশন কোন চেক (ধরা পড়া)
+            const dx = player.x - enemy.x;
+            const dy = player.y - enemy.y;
+            const distance = Math.hypot(dx, dy);
+
+            if (distance < enemy.visionRange) {
+                const angleToPlayer = Math.atan2(dy, dx);
+                // শত্রু কোন দিকে তাকাচ্ছে (নিচে নাকি উপরে)
+                const facingAngle = enemy.speedY > 0 ? Math.PI / 2 : -Math.PI / 2;
+                let angleDiff = Math.abs(facingAngle - angleToPlayer);
+
+                if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+
+                if (angleDiff < enemy.visionAngle / 2 || distance < enemy.radius + player.radius) {
+                    resetGame('ধরা খেয়ে গেছেন! আবার চেষ্টা করুন।');
+                }
+            }
+
+            // টার্গেটে পৌঁছানো
+            const distToTea = Math.hypot(player.x - tea.x, player.y - tea.y);
+            if (distToTea < player.radius + tea.radius) {
+                score++;
+                scoreEl.innerText = score;
+                player.x = 50;
+                player.y = 200;
+                tea.y = Math.random() * (canvas.height - 100) + 50;
+            }
+        }
+
+        function resetGame(msg) {
+            alert(msg);
+            player.x = 50;
+            player.y = 200;
+            score = 0;
+            scoreEl.innerText = score;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // টার্গেট আঁকা (চা)
+            ctx.beginPath();
+            ctx.arc(tea.x, tea.y, tea.radius, 0, Math.PI * 2);
+            ctx.fillStyle = tea.color;
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.fillText('চা', tea.x - 6, tea.y + 4);
+
+            // শত্রুর ভিশন কোন আঁকা
+            const facingAngle = enemy.speedY > 0 ? Math.PI / 2 : -Math.PI / 2;
+            ctx.beginPath();
+            ctx.moveTo(enemy.x, enemy.y);
+            ctx.arc(
+                enemy.x, enemy.y, 
+                enemy.visionRange, 
+                facingAngle - enemy.visionAngle / 2, 
+                facingAngle + enemy.visionAngle / 2
+            );
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(231, 76, 60, 0.25)';
+            ctx.fill();
+
+            // শত্রু আঁকা
+            ctx.beginPath();
+            ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
+            ctx.fillStyle = enemy.color;
+            ctx.fill();
+
+            // প্লেয়ার আঁকা (মদন কাকু)
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fillStyle = player.color;
+            ctx.fill();
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
